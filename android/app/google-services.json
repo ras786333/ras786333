@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "777340799230",
+    "project_id": "onlinechantha",
+    "storage_bucket": "onlinechantha.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:777340799230:android:cbf80c3917fa024dd5bdaf",
+        "android_client_info": {
+          "package_name": "com.mob.chan"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3U_72MplLO7aBO6HHrZAaf9Ikt4qacl4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
