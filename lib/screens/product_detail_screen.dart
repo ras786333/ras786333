@@ -11,6 +11,10 @@ import 'order_form_screen.dart';
 import 'dart:io' show Platform;
 import 'admin/edit_product_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../services/firestore_service.dart';
+import '../services/cart_service.dart';
+import '../services/auth_service.dart';
+import '../utils/app_constants.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   static const routeName = '/product-detail';
@@ -37,6 +41,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   int _selectedQuantity = 1;
   bool _isLoading = true;
   bool _isAdmin = false;
+  final FirestoreService _firestoreService = FirestoreService();
+  final CartService _cartService = CartService();
+  final AuthService _authService = AuthService();
+  List<Map<String, dynamic>> _reviews = [];
+  double _averageRating = 0.0;
+  bool _isReviewing = false;
+  double _selectedRating = 0.0;
+  final TextEditingController _reviewController = TextEditingController();
 
   @override
   void initState() {
@@ -54,6 +66,27 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     _animationController.forward();
     _loadProduct();
     _checkAdminStatus();
+    _loadReviews();
+    _setupReviewListener();
+  }
+
+  void _setupReviewListener() {
+    _firestoreService.getReviewsStream(widget.productId).listen((reviews) {
+      setState(() {
+        _reviews = reviews;
+        _calculateAverageRating();
+      });
+    });
+  }
+
+  void _calculateAverageRating() {
+    if (_reviews.isEmpty) {
+      _averageRating = 0.0;
+      return;
+    }
+    final totalRating =
+        _reviews.fold(0.0, (sum, review) => sum + (review['rating'] as double));
+    _averageRating = totalRating / _reviews.length;
   }
 
   Future<void> _checkAdminStatus() async {
@@ -88,6 +121,48 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
         Navigator.of(context).pop();
       }
     }
+  }
+
+  Future<void> _loadReviews() async {
+    setState(() => _isLoading = true);
+    try {
+      _reviews = await _firestoreService.getProductReviews(widget.productId);
+      _averageRating =
+          await _firestoreService.getProductAverageRating(widget.productId);
+    } catch (e) {
+      print('Error loading reviews: $e');
+    }
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _submitReview() async {
+    if (_selectedRating == 0.0 || _reviewController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please provide both rating and comment')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final user = _authService.currentUser;
+      await _firestoreService.addReview(
+        widget.productId,
+        user?.uid ?? 'anonymous',
+        user?.displayName ?? 'Anonymous User',
+        _selectedRating,
+        _reviewController.text,
+      );
+      _reviewController.clear();
+      _selectedRating = 0.0;
+      setState(() => _isReviewing = false);
+    } catch (e) {
+      print('Error submitting review: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to submit review')),
+      );
+    }
+    setState(() => _isLoading = false);
   }
 
   void _checkStock() {
@@ -436,19 +511,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     );
   }
 
-  Future<void> _shareProduct() async {
-    final message = '''
-*${product.name}*
-------------------
-*വില:* ₹${product.price.toStringAsFixed(2)}
-*വിഭാഗം:* ${product.category}
-*വിവരണം:* ${product.description}
+  void _shareProduct() async {
+    final message = AppConstants.getProductShareMessage(
+      product.name,
+      product.id,
+      product.price,
+    );
 
-ഉൽപ്പന്നം വാങ്ങാൻ ആപ്പ് ഡൗൺലോഡ് ചെയ്യുക:
-https://play.google.com/store/apps/details?id=com.mob.mobile_shop
-''';
-
-    await Share.share(message, subject: product.name);
+    await Share.share(
+      message,
+      subject: 'Check out ${product.name}',
+    );
   }
 
   Future<void> _launchAppStore() async {
@@ -755,6 +828,8 @@ https://play.google.com/store/apps/details?id=com.mob.mobile_shop
                         ),
                       ),
                     ),
+                    const SizedBox(height: 24),
+                    _buildReviewSection(),
                   ],
                 ),
               ),
@@ -911,6 +986,126 @@ https://play.google.com/store/apps/details?id=com.mob.mobile_shop
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildReviewSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Reviews',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(Icons.star, color: Colors.amber, size: 24),
+            const SizedBox(width: 4),
+            Text(
+              _averageRating.toStringAsFixed(1),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 4),
+            Text('(${_reviews.length} reviews)'),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (!_isReviewing)
+          ElevatedButton(
+            onPressed: () => setState(() => _isReviewing = true),
+            child: const Text('Write a Review'),
+          ),
+        if (_isReviewing) ...[
+          const Text('Your Rating:'),
+          Row(
+            children: List.generate(5, (index) {
+              return IconButton(
+                icon: Icon(
+                  index < _selectedRating ? Icons.star : Icons.star_border,
+                  color: Colors.amber,
+                ),
+                onPressed: () => setState(() => _selectedRating = index + 1.0),
+              );
+            }),
+          ),
+          TextField(
+            controller: _reviewController,
+            decoration: const InputDecoration(
+              hintText: 'Write your review here...',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => setState(() => _isReviewing = false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: _submitReview,
+                child: const Text('Submit'),
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 16),
+        if (_reviews.isEmpty)
+          const Center(
+            child: Text(
+              'No reviews yet. Be the first to review!',
+              style: TextStyle(color: Colors.grey),
+            ),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _reviews.length,
+            itemBuilder: (context, index) {
+              final review = _reviews[index];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            review['userName'],
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${review['rating']} ★',
+                            style: const TextStyle(color: Colors.amber),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(review['comment']),
+                      const SizedBox(height: 8),
+                      Text(
+                        review['timestamp']
+                                ?.toDate()
+                                .toString()
+                                .split(' ')[0] ??
+                            '',
+                        style:
+                            const TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
       ],
     );
   }

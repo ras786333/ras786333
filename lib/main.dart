@@ -13,6 +13,7 @@ import 'screens/categories_screen.dart';
 import 'screens/add_product_screen.dart';
 import 'screens/order_screen.dart';
 import 'screens/splash_screen.dart';
+import 'services/firestore_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,8 +38,34 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({Key? key}) : super(key: key);
+
+  @override
+  _MyAppState createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    _initializeFirebase();
+    _checkLoginStatus();
+    _backupData();
+  }
+
+  Future<void> _initializeFirebase() async {
+    // Implementation of _initializeFirebase method
+  }
+
+  Future<void> _checkLoginStatus() async {
+    // Implementation of _checkLoginStatus method
+  }
+
+  Future<void> _backupData() async {
+    final firestoreService = FirestoreService();
+    await firestoreService.backupData();
+  }
 
   @override
   Widget build(BuildContext context) {

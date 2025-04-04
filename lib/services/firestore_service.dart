@@ -202,4 +202,123 @@ class FirestoreService {
       rethrow;
     }
   }
+
+  // ഡാറ്റ ബാക്കപ്പ്
+  Future<void> backupData() async {
+    try {
+      // ഉത്പന്നങ്ങൾ ബാക്കപ്പ്
+      final productsSnapshot = await _firestore.collection('products').get();
+      final products = productsSnapshot.docs.map((doc) => doc.data()).toList();
+
+      // ഓർഡറുകൾ ബാക്കപ്പ്
+      final ordersSnapshot = await _firestore.collection('orders').get();
+      final orders = ordersSnapshot.docs.map((doc) => doc.data()).toList();
+
+      // ബാക്കപ്പ് ഡാറ്റ സേവ് ചെയ്യുക
+      await _firestore.collection('backups').doc('latest').set({
+        'products': products,
+        'orders': orders,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      print('ഡാറ്റ ബാക്കപ്പ് വിജയകരമായി');
+    } catch (e) {
+      print('ഡാറ്റ ബാക്കപ്പ് പരാജയപ്പെട്ടു: $e');
+    }
+  }
+
+  // ഡാറ്റ റെസ്റ്റോർ
+  Future<void> restoreData() async {
+    try {
+      // ബാക്കപ്പ് ഡാറ്റ ലോഡ് ചെയ്യുക
+      final backupSnapshot =
+          await _firestore.collection('backups').doc('latest').get();
+      final backupData = backupSnapshot.data();
+
+      if (backupData != null) {
+        // ഉത്പന്നങ്ങൾ റെസ്റ്റോർ
+        final products = backupData['products'] as List;
+        for (var product in products) {
+          await _firestore.collection('products').add(product);
+        }
+
+        // ഓർഡറുകൾ റെസ്റ്റോർ
+        final orders = backupData['orders'] as List;
+        for (var order in orders) {
+          await _firestore.collection('orders').add(order);
+        }
+      }
+
+      print('ഡാറ്റ റെസ്റ്റോർ വിജയകരമായി');
+    } catch (e) {
+      print('ഡാറ്റ റെസ്റ്റോർ പരാജയപ്പെട്ടു: $e');
+    }
+  }
+
+  // Add review for a product
+  Future<void> addReview(String productId, String userId, String userName,
+      double rating, String comment) async {
+    try {
+      await _firestore.collection('reviews').add({
+        'productId': productId,
+        'userId': userId,
+        'userName': userName,
+        'rating': rating,
+        'comment': comment,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error adding review: $e');
+      rethrow;
+    }
+  }
+
+  // Get reviews for a product
+  Future<List<Map<String, dynamic>>> getProductReviews(String productId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('reviews')
+          .where('productId', isEqualTo: productId)
+          .orderBy('timestamp', descending: true)
+          .get();
+
+      return querySnapshot.docs.map((doc) => doc.data()).toList();
+    } catch (e) {
+      print('Error getting reviews: $e');
+      rethrow;
+    }
+  }
+
+  // Get average rating for a product
+  Future<double> getProductAverageRating(String productId) async {
+    try {
+      final reviews = await getProductReviews(productId);
+      if (reviews.isEmpty) return 0.0;
+
+      final totalRating = reviews.fold(
+          0.0, (sum, review) => sum + (review['rating'] as double));
+      return totalRating / reviews.length;
+    } catch (e) {
+      print('Error calculating average rating: $e');
+      rethrow;
+    }
+  }
+
+  // Get reviews stream for a product
+  Stream<List<Map<String, dynamic>>> getReviewsStream(String productId) {
+    return _firestore
+        .collection('reviews')
+        .where('productId', isEqualTo: productId)
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+  }
+
+  // Get products stream
+  Stream<List<Product>> getProductsStream() {
+    return _firestore.collection('products').orderBy('name').snapshots().map(
+        (snapshot) => snapshot.docs
+            .map((doc) => Product.fromMap(doc.data() as Map<String, dynamic>))
+            .toList());
+  }
 }

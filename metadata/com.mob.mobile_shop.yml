@@ -1,0 +1,37 @@
+Categories:
+  - Shopping
+License: Apache-2.0
+AuthorName: Your Name
+SourceCode: https://github.com/yourusername/mobile_shop
+IssueTracker: https://github.com/yourusername/mobile_shop/issues
+
+AutoName: Mobile Shop
+
+RepoType: git
+Repo: https://github.com/yourusername/mobile_shop.git
+
+Builds:
+  - versionName: '1.0.0'
+    versionCode: 1
+    commit: v1.0.0
+    subdir: android
+    gradle:
+      - yes
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 1.0.0
+CurrentVersionCode: 1
+
+Description: |
+  Mobile Shop is a user-friendly mobile shopping application.
+
+  Features:
+  * Browse latest mobile phones
+  * View detailed specifications
+  * Read and write product reviews
+  * Share products with friends
+  * Secure ordering system
+  * Real-time updates
+
+  Perfect for anyone looking to buy mobile phones and accessories. 
